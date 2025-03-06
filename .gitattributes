@@ -1,0 +1,13 @@
+# When there are merge conflicts in the changelog, just keep both files
+doc/changelog.rst merge=union
+
+# Use your language support, git
+*.py diff=python
+*.css diff=css
+*.js diff=javascript
+*.html diff=html
+
+# Prettier language stats on GitHub, and hide generated files in diffs on GitHub
+src/pretalx/static/vendored/* linguist-vendored
+*.min.js linguist-vendored
+doc/* linguist-documentation

@@ -1,0 +1,57 @@
+{% extends "agenda/base.html" %}
+{% comment %}
+SPDX-FileCopyrightText: 2017-present Tobias Kunze
+SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-Pretalx-AGPL-3.0-Terms
+{% endcomment %}
+
+{% load i18n %}
+{% load static %}
+
+{% block agenda_stylesheets %}
+    <link rel="stylesheet" type="text/css" href="{% static 'agenda/css/changelog.css' %}">
+{% endblock agenda_stylesheets %}
+
+{% block scripts %}
+    {% if not is_html_export %}
+        <script defer src="{% static 'vendored/htmx.min.js' %}"></script>
+        <script defer src="{% static 'agenda/js/changelog.js' %}"></script>
+    {% endif %}
+{% endblock scripts %}
+
+{% block agenda_content %}
+    <article class="changelog">
+        <h2 class="page-heading">{% translate "Schedule changes" %}</h2>
+        {% for schedule in schedules %}
+            <details
+                class="changelog-entry"
+                id="{{ schedule.version }}"
+                {% if is_html_export or forloop.first %}
+                    open
+                {% else %}
+                    hx-get="{{ schedule.urls.changelog_entry }}"
+                    hx-trigger="toggle once"
+                    hx-target="find .changelog-entry-content"
+                    hx-swap="innerHTML"
+                {% endif %}
+            >
+                <summary>
+                    <span class="changelog-entry-version">{{ phrases.schedule.version }} {{ schedule.version }}</span>
+                    <span class="text-muted">{{ schedule.published|date }}</span>
+                </summary>
+                <div class="changelog-entry-content">
+                    {% if is_html_export or forloop.first %}
+                        {% include "agenda/changelog_block.html" with schedule=schedule %}
+                    {% else %}
+                        {% include "common/includes/loading_spinner.html" %}
+                    {% endif %}
+                </div>
+                <div class="changelog-entry-footer">
+                    <a class="btn btn-sm btn-outline-primary" href="{{ schedule.urls.public }}">
+                        <i class="fa fa-calendar"></i>
+                        {% translate "Go to this schedule version" %}
+                    </a>
+                </div>
+            </details>
+        {% endfor %}
+    </article>
+{% endblock agenda_content %}

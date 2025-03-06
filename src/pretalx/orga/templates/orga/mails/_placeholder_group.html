@@ -1,0 +1,69 @@
+{% comment %}
+SPDX-FileCopyrightText: 2023-present Tobias Kunze
+SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-Pretalx-AGPL-3.0-Terms
+{% endcomment %}
+
+{% load i18n %}
+{% load rich_text %}
+{% if placeholders %}
+    <div class="card mb-2" id="placeholder-{{ tag }}">
+        <div class="card-header">
+            <strong role="heading" aria-level="3">
+                {% if tag == "submission" %}
+                    {{ phrases.schedule.sessions }}
+                {% elif tag == "slot" %}
+                    {{ phrases.schedule.schedule }}
+                {% elif tag == "user" %}
+                    {% translate "User" %}
+                {% elif tag == "event" %}
+                    {% blocktranslate trimmed count count=1 %}
+                        Event
+                    {% plural %}
+                        Events
+                    {% endblocktranslate %}
+                {% elif tag == "other" %}
+                    {% translate "Other" context "category of items" %}
+                {% else %}
+                    {{ tag }}
+                {% endif %}
+            </strong>
+            <span class="text-muted d-none unavailable">
+                {% translate "Unavailable" %}
+            </span>
+        </div>
+        <ul class="list-group list-group-flush">
+            {% for placeholder in placeholders %}{% if placeholder.is_visible %}
+                    <li
+                        class="list-group-item list-group-item-action placeholder"
+                        data-placeholder="{{ placeholder.identifier }}"
+                        {% if placeholder.account_required %}data-account-required{% endif %}
+                    >
+                        <div class="placeholder-content">
+                            <span class="placeholder-text">
+                                {% templatetag openbrace %}{{ placeholder.identifier }}{% templatetag closebrace %}
+                            </span>
+                            <button
+                                type="button"
+                                class="font-text"
+                                data-toggle="collapse"
+                                data-target="#collapse{{ placeholder.identifier }}"
+                                aria-controls="collapse{{ placeholder.identifier }}"
+                                aria-expanded="false"
+                                aria-label='{% translate "Toggle explanation" %}'
+                            >
+                                <i class="fa fa-question ml-auto"></i>
+                            </button>
+                        </div>
+                        <small
+                            class="text-muted collapse"
+                            id="collapse{{ placeholder.identifier }}"
+                            data-parent="#placeholder-{{ tag }}"
+                        >
+                            {{ placeholder.explanation }}, {% translate "e.g." %}
+                            {{ placeholder.rendered_sample|rich_text }}
+                        </small>
+                    </li>
+                {% endif %}{% endfor %}
+        </ul>
+    </div>
+{% endif %}

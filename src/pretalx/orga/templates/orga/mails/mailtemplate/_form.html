@@ -1,0 +1,18 @@
+{% extends "orga/generic/_form.html" %}
+{% comment %}
+SPDX-FileCopyrightText: 2025-present Tobias Kunze
+SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-Pretalx-AGPL-3.0-Terms
+{% endcomment %}
+
+{% block content %}
+    <div id="placeholder-neighbour">
+        {% with form_class="form-with-placeholder" %}
+            {{ block.super }}
+        {% endwith %}
+    </div>
+{% endblock content %}
+
+{% block form %}
+    {% include "orga/mails/_placeholder_column.html" %}
+    {{ block.super }}
+{% endblock form %}

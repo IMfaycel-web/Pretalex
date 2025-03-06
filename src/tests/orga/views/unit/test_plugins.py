@@ -1,0 +1,105 @@
+# SPDX-FileCopyrightText: 2026-present Tobias Kunze
+# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-Pretalx-AGPL-3.0-Terms
+import types
+
+import pytest
+
+from pretalx.common.plugins import get_all_plugins
+from pretalx.event.domain.plugins import enable_plugin
+from pretalx.orga.views.plugins import EventPluginsView
+from tests.utils import make_orga_user, make_request, make_view
+
+pytestmark = [pytest.mark.unit, pytest.mark.django_db]
+
+
+def test_resolve_links_resolves_valid_url(event):
+    user = make_orga_user(event, can_change_event_settings=True)
+    request = make_request(event, user=user)
+    view = make_view(EventPluginsView, request)
+    plugin = next(p for p in get_all_plugins() if p.module == "tests.dummy_app")
+
+    result = view._resolve_links(plugin, "settings_links")
+
+    assert len(result) == 1
+    url, label = result[0]
+    assert url == f"/orga/event/{event.slug}/settings/"
+    assert label == "Dummy Settings"
+
+
+def test_resolve_links_skips_invalid_url(event):
+    user = make_orga_user(event, can_change_event_settings=True)
+    request = make_request(event, user=user)
+    view = make_view(EventPluginsView, request)
+    plugin = types.SimpleNamespace(settings_links=[("Bad", "nonexistent:url.name", {})])
+
+    result = view._resolve_links(plugin, "settings_links")
+
+    assert result == []
+
+
+def test_resolve_links_missing_attr_returns_empty(event):
+    user = make_orga_user(event, can_change_event_settings=True)
+    request = make_request(event, user=user)
+    view = make_view(EventPluginsView, request)
+    plugin = next(p for p in get_all_plugins() if p.module == "tests.dummy_app")
+
+    result = view._resolve_links(plugin, "nonexistent_links")
+
+    assert result == []
+
+
+def test_grouped_plugins_returns_dict_with_dummy_plugin(event):
+    user = make_orga_user(event, can_change_event_settings=True)
+    request = make_request(event, user=user)
+    view = make_view(EventPluginsView, request)
+
+    result = view.grouped_plugins
+
+    assert isinstance(result, dict)
+    all_plugins = [p for plugins in result.values() for p in plugins]
+    module_names = [p.module for p in all_plugins]
+    assert "tests.dummy_app" in module_names
+    for key in result:
+        assert isinstance(key, tuple)
+        assert len(key) == 2
+
+
+def test_grouped_plugins_active_plugin_has_resolved_links(event):
+    enable_plugin(event, "tests.dummy_app")
+    user = make_orga_user(event, can_change_event_settings=True)
+    request = make_request(event, user=user)
+    view = make_view(EventPluginsView, request)
+
+    grouped = view.grouped_plugins
+    all_plugins = [p for plugins in grouped.values() for p in plugins]
+    active = [p for p in all_plugins if p.module == "tests.dummy_app"]
+
+    assert len(active) == 1
+    assert len(active[0].resolved_settings_links) == 1
+    url, label = active[0].resolved_settings_links[0]
+    assert url == f"/orga/event/{event.slug}/settings/"
+    assert label == "Dummy Settings"
+    assert active[0].resolved_navigation_links == []
+
+
+def test_grouped_plugins_inactive_plugin_has_empty_links(event):
+    user = make_orga_user(event, can_change_event_settings=True)
+    request = make_request(event, user=user)
+    view = make_view(EventPluginsView, request)
+
+    grouped = view.grouped_plugins
+    all_plugins = [p for plugins in grouped.values() for p in plugins]
+    inactive = [p for p in all_plugins if p.module == "tests.dummy_app"]
+
+    assert len(inactive) == 1
+    assert inactive[0].resolved_settings_links == []
+    assert inactive[0].resolved_navigation_links == []
+
+
+def test_plugins_active_returns_plugin_list(event):
+    enable_plugin(event, "tests.dummy_app")
+    user = make_orga_user(event, can_change_event_settings=True)
+    request = make_request(event, user=user)
+    view = make_view(EventPluginsView, request)
+
+    assert view.plugins_active == ["tests.dummy_app"]

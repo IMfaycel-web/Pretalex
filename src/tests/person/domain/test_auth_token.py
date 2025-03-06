@@ -1,0 +1,137 @@
+# SPDX-FileCopyrightText: 2026-present Tobias Kunze
+# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-Pretalx-AGPL-3.0-Terms
+
+import pytest
+from django.utils.timezone import now as tz_now
+
+from pretalx.api.versions import CURRENT_VERSION
+from pretalx.person.domain.auth_token import (
+    revoke_token,
+    update_token_events,
+    upgrade_token,
+)
+from tests.factories import EventFactory, TeamFactory, UserApiTokenFactory, UserFactory
+
+pytestmark = [pytest.mark.unit, pytest.mark.django_db]
+
+
+def test_update_token_events_removes_inaccessible():
+    user = UserFactory()
+    event1 = EventFactory()
+    event2 = EventFactory()
+    team = TeamFactory(organiser=event1.organiser, all_events=True)
+    team.members.add(user)
+    # event2 is on a different organiser, so user has no access
+    token = UserApiTokenFactory(user=user)
+    token.limit_events.add(event1, event2)
+
+    update_token_events(token)
+
+    assert list(token.limit_events.all()) == [event1]
+
+
+def test_update_token_events_expires_when_all_removed():
+    user = UserFactory()
+    event = EventFactory()
+    # User has no team membership, so no access to any events
+    token = UserApiTokenFactory(user=user, expires=None)
+    token.limit_events.add(event)
+
+    update_token_events(token)
+
+    token.refresh_from_db()
+    assert not token.limit_events.exists()
+    assert token.expires is not None
+    assert token.expires <= tz_now()
+
+
+def test_update_token_events_expires_all_events_token_without_access():
+    user = UserFactory()
+    token = UserApiTokenFactory(user=user, all_events=True, expires=None)
+
+    update_token_events(token)
+
+    token.refresh_from_db()
+    assert token.expires is not None
+    assert token.expires <= tz_now()
+
+
+def test_update_token_events_keeps_administrator_all_events_token():
+    user = UserFactory(is_administrator=True)
+    token = UserApiTokenFactory(user=user, all_events=True, expires=None)
+
+    update_token_events(token)
+
+    token.refresh_from_db()
+    assert token.expires is None
+
+
+def test_update_token_events_keeps_administrator_limit_events():
+    user = UserFactory(is_administrator=True)
+    event = EventFactory()
+    token = UserApiTokenFactory(user=user, expires=None)
+    token.limit_events.add(event)
+
+    update_token_events(token)
+
+    token.refresh_from_db()
+    assert list(token.limit_events.all()) == [event]
+    assert token.expires is None
+
+
+def test_update_token_events_keeps_all_events_token_with_access():
+    user = UserFactory()
+    event = EventFactory()
+    TeamFactory(organiser=event.organiser, all_events=True).members.add(user)
+    token = UserApiTokenFactory(user=user, all_events=True, expires=None)
+
+    update_token_events(token)
+
+    token.refresh_from_db()
+    assert token.expires is None
+
+
+def test_update_token_events_noop_when_all_accessible():
+    user = UserFactory()
+    event = EventFactory()
+    team = TeamFactory(organiser=event.organiser, all_events=True)
+    team.members.add(user)
+    token = UserApiTokenFactory(user=user)
+    token.limit_events.add(event)
+
+    update_token_events(token)
+
+    assert list(token.limit_events.all()) == [event]
+    token.refresh_from_db()
+    assert token.expires is None
+
+
+def test_upgrade_token_sets_current_version_and_logs():
+    user = UserFactory()
+    token = UserApiTokenFactory(user=user, version="v1")
+
+    upgrade_token(token)
+
+    token.refresh_from_db()
+    assert token.version == CURRENT_VERSION
+    log_entry = (
+        token.logged_actions().filter(action_type="pretalx.user.token.upgrade").get()
+    )
+    assert log_entry.person == user
+
+
+def test_revoke_token_expires_and_logs():
+    user = UserFactory()
+    token = UserApiTokenFactory(user=user, expires=None)
+
+    revoke_token(token)
+
+    token.refresh_from_db()
+    assert token.expires is not None
+    assert token.expires <= tz_now()
+    assert not token.is_active
+    log_entry = (
+        token.logged_actions().filter(action_type="pretalx.user.token.revoke").get()
+    )
+    assert log_entry.person == user
+    assert log_entry.data["token"] == f"{token.token[:4]}…"

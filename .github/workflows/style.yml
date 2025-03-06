@@ -1,0 +1,59 @@
+# SPDX-FileCopyrightText: 2020-present Tobias Kunze
+# SPDX-License-Identifier: Apache-2.0
+
+name: Code Style
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'src/pretalx/locale/**'
+      - 'src/pretalx/static/**'
+      - 'doc/**'
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - 'src/pretalx/locale/**'
+      - 'src/pretalx/static/**'
+      - 'doc/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  linters:
+    name: Code style
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: ".github/workflows/python-version.txt"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - uses: extractions/setup-just@v4
+      - parallel:
+          - name: Check for unresolved string markers
+            run: just marker-check
+          - name: Run isort
+            run: just fmt-check
+          - name: Check for untrimmed blocktranslate tags
+            run: just blocktranslate-check
+  compliance:
+    name: Licensing and compliance checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: ".github/workflows/python-version.txt"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - uses: extractions/setup-just@v4
+      - name: Run REUSE
+        run: just reuse

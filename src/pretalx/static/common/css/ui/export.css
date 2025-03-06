@@ -1,0 +1,36 @@
+/*
+ * SPDX-FileCopyrightText: 2025-present Tobias Kunze
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+.export-qrcode,
+.qrcode {
+  display: inline-block;
+  position: relative;
+}
+.export-qrcode-image,
+.qrcode-image {
+  display: none;
+  width: 160px;
+  height: 160px;
+  position: absolute;
+  z-index: 1000;
+  background: white;
+  box-shadow: var(--shadow-light);
+  svg {
+    width: 100%;
+    height: 100%;
+  }
+}
+.export-qrcode-image {
+  right: 0;
+}
+.export-qrcode:hover .export-qrcode-image,
+.qrcode:hover .qrcode-image {
+  display: block;
+}
+details.dropdown
+  .dropdown-content
+  .dropdown-item:has(.export-qrcode, .qrcode) {
+  overflow: visible;
+}

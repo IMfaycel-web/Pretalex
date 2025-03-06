@@ -1,0 +1,108 @@
+# SPDX-FileCopyrightText: 2020-present Tobias Kunze
+# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-Pretalx-AGPL-3.0-Terms
+
+from django.db.models import Count, Q
+from rest_framework.permissions import BasePermission
+
+from pretalx.orga.rules import can_view_speaker_names
+from pretalx.person.rules import is_only_reviewer
+
+MODEL_PERMISSION_MAP = {
+    "list": "list",
+    "retrieve": "view",
+    "update": "update",
+    "partial_update": "update",
+    "destroy": "delete",
+}
+
+
+class ApiPermission(BasePermission):
+    def get_permission_object(self, view, obj, request, detail=False):
+        return obj or getattr(request, "event", None) or request.organiser
+
+    def has_permission(self, request, view):
+        return self._has_permission(view, None, request)
+
+    def has_object_permission(self, request, view, obj):
+        return self._has_permission(view, obj, request)
+
+    def _has_permission(self, view, obj, request):
+        """
+        We check multiple levels of permissions:
+        - Is the auth token active in the first place (not expired)
+        - Does the auth token have access to the event
+        - Does the auth token have access to the endpoint (with the method used)
+        - Does the user have the required additional object-level permissions
+        """
+        event = getattr(request, "event", None)
+        if token := request.auth:
+            if event:
+                if not token.all_events and event not in token.limit_events.all():
+                    return False
+                # Reviewers can only access the API if they are allowed to see
+                # speaker names in this phase / by their team settings — otherwise
+                # we can’t guarantee that ?expand= lookups won’t leak
+                # non-anonymised information.
+                if is_only_reviewer(request.user, event) and not can_view_speaker_names(
+                    request.user, event
+                ):
+                    return False
+            elif (
+                organiser := getattr(request, "organiser", None)
+            ) and not token.all_events:
+                # Organiser-level endpoints can only be reached if the token
+                # covers all existing events, either implicitly via all_events
+                # or explicitly by listing them all.
+                # If an organiser has no events yet, only tokens valid for
+                # all_events can be used for organiser-level endpoints.
+                coverage = organiser.events.aggregate(
+                    total=Count("pk"),
+                    uncovered=Count("pk", filter=~Q(pk__in=token.limit_events.all())),
+                )
+                if not coverage["total"] or coverage["uncovered"]:
+                    return False
+            endpoint = getattr(view, "endpoint", None)
+            if endpoint:
+                permission_action = "retrieve" if view.action == "log" else view.action
+                if not token.has_endpoint_permission(endpoint, permission_action):
+                    return False
+
+        if view.detail and not obj:
+            # Early out as DRF will check permissions on detail endpoints twice,
+            # once without an object passed and once with.
+            return True
+
+        permission_object = self.get_permission_object(
+            view, obj, request, detail=view.detail
+        )
+        permission_map = getattr(view, "permission_map", None) or {}
+        # The log endpoint should behave like the retrieve endpoint
+        permission_action = "retrieve" if view.action == "log" else view.action
+        permission_required = permission_map.get(permission_action)
+        if not permission_required:
+            model_action = MODEL_PERMISSION_MAP.get(permission_action, view.action)
+            permission_required = view.queryset.model.get_perm(model_action)
+        return request.user.has_perm(permission_required, permission_object)
+
+
+class PluginPermission(ApiPermission):
+    """Use this class to restrict access to views based on active plugins.
+
+    Set PluginPermission.plugin_required to the name of the plugin that is required to access the endpoint.
+    """
+
+    def has_permission(self, request, view):
+        return self._has_permission(view, None, request)
+
+    def has_object_permission(self, request, view, obj):
+        return self._has_permission(view, obj, request)
+
+    def _has_permission(self, view, obj, request):
+        event = getattr(request, "event", None)
+        if not event:
+            # Only events can have plugins
+            return False
+        plugin_name = getattr(view, "plugin_required", None)
+        if not plugin_name:
+            return True
+        return plugin_name in event.plugin_list

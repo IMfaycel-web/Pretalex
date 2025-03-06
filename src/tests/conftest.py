@@ -1,0 +1,238 @@
+# SPDX-FileCopyrightText: 2026-present Tobias Kunze
+# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-Pretalx-AGPL-3.0-Terms
+import tempfile
+import uuid
+from io import BytesIO
+from pathlib import Path
+
+import pytest
+from django.conf import settings
+from django.core.cache import caches
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
+from django.utils import timezone, translation
+from django_scopes import scopes_disabled
+from hierarkey.proxy import dirty_cache_keys
+from PIL import Image
+
+from pretalx.agenda.views import widget as widget_module
+from pretalx.schedule.domain.release import freeze_schedule
+from pretalx.submission.models import SubmissionStates
+from tests.factories import (
+    AnswerFactory,
+    AvailabilityFactory,
+    EventFactory,
+    FeedbackFactory,
+    QuestionFactory,
+    ResourceFactory,
+    ReviewFactory,
+    RoomFactory,
+    SpeakerFactory,
+    SpeakerInformationFactory,
+    SubmissionFactory,
+    TagFactory,
+    TalkSlotFactory,
+    TrackFactory,
+)
+from tests.utils import make_orga_user
+
+# -- django-scopes pytest hooks ------------------------------------------------
+# Fixture setup is never production code, so we always disable scopes there.
+# For test bodies, unit tests (marked @pytest.mark.unit) run with scopes
+# disabled since they don't exercise middleware. Integration and e2e tests
+# keep scopes active so the middleware sets scope(event=…) naturally;
+# assertions in those tests still need `with scopes_disabled():`.
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_fixture_setup(fixturedef, request):
+    """Disable django-scopes during all fixture setup."""
+    with scopes_disabled():
+        yield
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_call(item):
+    """Disable django-scopes for the body of unit tests."""
+    if item.get_closest_marker("unit"):
+        with scopes_disabled():
+            yield
+    else:
+        yield
+
+
+@pytest.fixture(autouse=True)
+def _instance_identifier(monkeypatch):
+    """Pre-initialize the module-level INSTANCE_IDENTIFIER cache so that
+    Room.uuid does not trigger one-time GlobalSettings DB setup queries
+    that would distort query-count assertions."""
+    monkeypatch.setattr(
+        "pretalx.common.models.settings.INSTANCE_IDENTIFIER",
+        uuid.UUID("8d0ff8b1-a29a-4b06-bc66-77b1d0aeeb31"),
+    )
+
+
+@pytest.fixture(autouse=True)
+def reset_hierarkey_cache_state():
+    """Hierarkey marks written settings keys as dirty and only clears the
+    marker in a transaction.on_commit hook, which never runs under test
+    rollback."""
+    dirty_cache_keys.set(set())
+
+
+@pytest.fixture(autouse=True)
+def _reset_translation_state():
+    """Snapshot and restore the active translation/timezone after each test.
+
+    Tests that drive the EventMiddleware directly (or any code
+    path that calls translation.activate without restoring) would otherwise
+    leak the activated language to whatever runs next on the same xdist
+    worker, causing flaky failures depending on test order.
+    """
+    previous_language = translation.get_language()
+    yield
+    translation.activate(previous_language)
+    timezone.deactivate()
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _stub_widget_js():
+    """Provide a stand-in for the schedule widget JS bundle.
+    We do not run frontend tests, so pretalx-schedule.min.js may
+    not exist (if no npm build has run prior to tests)."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        widget_file = Path(tmp_dir) / widget_module.WIDGET_PATH
+        widget_file.parent.mkdir(parents=True, exist_ok=True)
+        widget_file.write_text("/* test stub for pretalx-schedule.min.js */\n")
+        with override_settings(STATICFILES_DIRS=[tmp_dir, *settings.STATICFILES_DIRS]):
+            widget_module.WIDGET_JS_CHECKSUM = None
+            widget_module.WIDGET_JS_CONTENT = None
+            yield
+
+
+@pytest.fixture
+def locmem_cache():
+    """Replace the DummyCache test default with a real LocMemCache so that
+    cache operations actually store and retrieve data.
+
+    Apply to individual tests or whole files via
+    ``@pytest.mark.usefixtures("locmem_cache")`` or
+    ``pytestmark = [... pytest.mark.usefixtures("locmem_cache")]``.
+    The cache is cleared before each test to guarantee isolation."""
+    locmem_settings = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "test-cache-unique",
+        }
+    }
+    with override_settings(CACHES=locmem_settings):
+        caches["default"].clear()
+        yield
+
+
+@pytest.fixture
+def event():
+    return EventFactory()
+
+
+@pytest.fixture
+def user_with_event():
+    event = EventFactory()
+    user = make_orga_user(event)
+    return user, event
+
+
+@pytest.fixture
+def populated_event():
+    """Use this when you need a fully-loaded event, e.g. for shred or
+    copy tests that exercise cascading operations.
+    """
+    event = EventFactory()
+
+    TrackFactory(event=event)
+    room = RoomFactory(event=event)
+    AvailabilityFactory(event=event, room=room)
+
+    speaker = SpeakerFactory(event=event)
+    submission = SubmissionFactory(event=event)
+    submission.speakers.add(speaker)
+
+    question = QuestionFactory(event=event)
+    AnswerFactory(question=question, submission=submission)
+
+    ReviewFactory(submission=submission)
+    FeedbackFactory(talk=submission)
+    ResourceFactory(submission=submission)
+
+    TagFactory(event=event)
+    SpeakerInformationFactory(event=event)
+
+    TalkSlotFactory(submission=submission)
+
+    return event
+
+
+@pytest.fixture
+def register_signal_handler(settings):
+    """Connect a temporary handler to an EventPluginSignal for the duration
+    of a single test."""
+    registered = []
+    settings.CORE_MODULES = [*settings.CORE_MODULES, "tests._test_plugin"]
+
+    def _register(signal, handler):
+        handler.__module__ = "tests._test_plugin"
+        signal.connect(handler)
+        registered.append((signal, handler))
+
+    yield _register
+
+    for signal, handler in registered:
+        signal.disconnect(handler)
+
+
+@pytest.fixture
+def organiser_user(event):
+    return make_orga_user(event)
+
+
+@pytest.fixture
+def talk_slot(event):
+    speaker = SpeakerFactory(event=event)
+    submission = SubmissionFactory(event=event, state=SubmissionStates.CONFIRMED)
+    submission.speakers.add(speaker)
+    return TalkSlotFactory(submission=submission, is_visible=True)
+
+
+@pytest.fixture
+def published_talk_slot(talk_slot):
+    freeze_schedule(talk_slot.schedule, "v1", notify_speakers=False)
+    return talk_slot
+
+
+@pytest.fixture
+def public_event_with_schedule(published_talk_slot):
+    return published_talk_slot.submission.event
+
+
+@pytest.fixture
+def make_image():
+    """Returns a factory function that creates a minimal valid PNG as a
+    SimpleUploadedFile."""
+    # Pre-built 1×1 PNG for the common case (avoids PIL overhead)
+    _1x1 = (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+        b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00"
+        b"\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0\x00\x00\x03\x01"
+        b"\x01\x00\xc9\xfe\x92\xef\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+
+    def _make(name="test.png", *, width=1, height=1):
+        if width == 1 and height == 1:
+            data = _1x1
+        else:
+            buf = BytesIO()
+            Image.new("RGB", (width, height), color="red").save(buf, format="PNG")
+            data = buf.getvalue()
+        return SimpleUploadedFile(name, data, content_type="image/png")
+
+    return _make

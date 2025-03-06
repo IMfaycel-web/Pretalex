@@ -1,0 +1,200 @@
+{% extends "orga/submission/base.html" %}
+{% comment %}
+SPDX-FileCopyrightText: 2017-present Tobias Kunze
+SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-Pretalx-AGPL-3.0-Terms
+
+This file contains Apache-2.0 licensed contributions copyrighted by the following contributors:
+SPDX-FileContributor: Florian Mösch
+{% endcomment %}
+
+{% load i18n %}
+{% load rich_text %}
+{% load rules %}
+{% load static %}
+{% load thumbnail %}
+
+{% block stylesheets %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'orga/css/ui/dragsort.css' %}">
+{% endblock stylesheets %}
+
+{% block scripts %}
+    {{ block.super }}
+    <script defer src="{% static 'orga/js/ui/dragsort.js' %}"></script>
+{% endblock scripts %}
+
+{% block submission_title %}{% translate "Speakers" %} ::
+{% endblock submission_title %}
+
+{% block submission_content %}
+    {% has_perm "submission.update_submission" request.user submission as can_edit_speakers %}
+    {% has_perm "mail.send_queuedmail" request.user request.event as can_send_mails %}
+    {% has_perm "person.mark_arrived_speakerprofile" request.user request.event as can_mark_speaker %}
+
+    {% if can_edit_speakers and not speakers and not invitations %}
+        <div class="alert">
+            {% partial invite_form %}
+        </div>
+    {% endif %}
+
+    {% partialdef speaker_list %}
+        {% for speaker in speakers %}
+            {% partialdef speaker_card %}
+                <div class="card {% if speakers|length <= 1 or not can_edit_speakers %}mb-3{% endif %} speaker-card">
+                    <div class="card-body">
+                        <div class="card-title">
+                            {% if speaker.speaker.avatar and request.event.cfp.request_avatar %}
+                                <div class="float-right speaker-detail">
+                                    <a href="{{ speaker.speaker.avatar_url }}" data-lightbox>
+                                        <img
+                                            loading="lazy"
+                                            width="100%"
+                                            src="{{ speaker.speaker.avatar|thumbnail:'default' }}"
+                                            alt="{{ phrases.schedule.speaker_picture_alt }}"
+                                        >
+                                    </a>
+                                </div>
+                            {% endif %}
+                            <h3 class="mb-0">
+                                {% include "orga/includes/speaker_name.html" with speaker=speaker.speaker link_url=speaker.speaker.orga_urls.base no_avatar=True %}
+                            </h3>
+                        </div>
+                        {% if request.event.cfp.request_biography %}
+                            <div class="card-text speaker-detail">
+                                <h5>{% translate "Biography" %}:</h5>
+                                {{ speaker.speaker.biography|rich_text|default:"-" }}
+                            </div>
+                        {% endif %}
+                        <div class="card-text speaker-detail">
+                            {% if speaker.other_submissions %}
+                                <h5>{% translate "Other proposals by this speaker:" %}</h5>
+                                <ul>
+                                    {% for submission in speaker.other_submissions %}
+                                        <li>
+                                            <a href="{{ submission.orga_urls.base }}">{{ submission.title }}</a>
+                                            {% include "cfp/event/fragment_state.html" with state=submission.state as_badge=True %}
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            {% endif %}
+                        </div>
+                        <div class="row w-100 ml-3 pr-3 align-items-end justify-content-end gap-2">
+                            {% if can_edit_speakers %}
+                                {% if can_mark_speaker and submission.state in 'accepted,confirmed' %}
+                                    {% include "orga/includes/mark_speakers_arrived.html" with speaker=speaker.speaker %}
+                                {% endif %}
+                                {% if can_send_mails %}
+                                    <a
+                                        class="btn btn-outline-info"
+                                        role="button"
+                                        href="{{ speaker.speaker.orga_urls.send_mail }}"
+                                    >
+                                        <i class="fa fa-envelope"></i>
+                                        {{ phrases.orga.send_email }}
+                                    </a>
+                                {% endif %}
+                                <a
+                                    href="{% url 'orga:speakers.view' event=request.event.slug code=speaker.speaker.code %}"
+                                    role="button"
+                                    class="btn btn-info"
+                                >
+                                    <i class="fa fa-edit"></i> {{ phrases.base.edit }}
+                                </a>
+                                {% if speakers|length > 1 %}
+                                    <div
+                                        role="button"
+                                        class="btn btn-info dragsort-button"
+                                        draggable="true"
+                                        title="{% translate 'Drag to reorder' %}"
+                                    >
+                                        <i class="fa fa-bars"></i> {% translate "Change order" %}
+                                    </div>
+                                {% endif %}
+                                <a
+                                    href="{{ submission.orga_urls.delete_speaker }}?id={{ speaker.speaker.id|urlencode }}"
+                                    role="button"
+                                    class="btn btn-danger"
+                                >
+                                    <i class="fa fa-trash"></i> {% translate "Remove" context "button" %}
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            {% endpartialdef %}
+            {% if speakers|length > 1 and can_edit_speakers %}
+                <div
+                    class="speaker-sort-wrapper"
+                    dragsort-id="{{ speaker.role.pk }}"
+                >
+                    {% partial speaker_card %}
+                </div>
+            {% else %}
+                {% partial speaker_card %}
+            {% endif %}
+        {% endfor %}
+    {% endpartialdef %}
+    {% if speakers|length > 1 and can_edit_speakers %}<div dragsort-url="{{ submission.orga_urls.reorder_speakers }}">
+            {% partial speaker_list %}
+        </div>{% else %}{% partial speaker_list %}{% endif %}
+
+    {% if invitations %}
+        <h4 class="mt-4">{% translate "Pending invitations" %}</h4>
+        {% for invitation in invitations %}
+            <div class="card mb-3 speaker-card">
+                <div class="card-body">
+                    <div class="card-title">
+                        <h3 class="mb-0">
+                            <i class="fa fa-clock"></i> {{ invitation.email }}
+                        </h3>
+                    </div>
+                    <p class="card-text text-muted ml-2">
+                        {% translate "Invited on" %} {{ invitation.created|date:"SHORT_DATE_FORMAT" }}
+                    </p>
+                    {% if can_edit_speakers %}
+                        <div class="row mr-2 justify-content-end">
+                            <a
+                                href="{{ submission.orga_urls.retract_invitation }}?id={{ invitation.id|urlencode }}"
+                                class="btn btn-danger ml-2"
+                            >
+                                <i class="fa fa-trash"></i> {% translate "Remove" context "button" %}
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    {% if can_edit_speakers %}{% if speakers or invitations %}
+            <button
+                type="button"
+                class="btn btn-success btn-block btn-lg mt-4"
+                data-dialog-target="#add-speaker-dialog"
+                data-toggle="dialog"
+            >
+                <i class="fa fa-plus"></i> {% translate "Add speaker" %}
+            </button>
+            <dialog id="add-speaker-dialog" closedby="any" {% if form.errors %}open{% endif %}>
+                <div class="modal-card-content">
+                    <button type="button" class="dialog-close close-dialog" aria-label="{% translate 'Close' %}">
+                        <i class="fa fa-times"></i>
+                    </button>
+                    <h3>{% translate "Add speaker" %}</h3>
+                    {% with in_dialog=True %}{% partial invite_form %}{% endwith %}
+                </div>
+            </dialog>
+        {% endif %}{% endif %}
+{% endblock submission_content %}
+
+{% partialdef invite_form %}
+    <form method="POST" class="form d-flex w-100 flex-column">
+        {% csrf_token %}
+        {% include "orga/includes/add_speaker_form.html" %}
+        <div class="{% if in_dialog %}dialog-footer{% else %}mt-2{% endif %}">
+            <button type="submit" class="btn btn-success btn-lg {% if not in_dialog %}btn-block{% endif %}">
+                <i class="fa fa-plus"></i> {% translate "Add speaker" %}
+            </button>
+        </div>
+    </form>
+{% endpartialdef invite_form %}

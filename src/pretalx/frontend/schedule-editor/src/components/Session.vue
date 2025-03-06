@@ -1,0 +1,313 @@
+<!--
+SPDX-FileCopyrightText: 2022-present Tobias Kunze
+SPDX-License-Identifier: Apache-2.0
+-->
+
+<template lang="pug">
+.c-linear-schedule-session(:style="style", :class="classes", draggable="true", @pointerdown.stop="$emit('startDragging', {session: session, event: $event})", @dragstart.prevent)
+	.time-box
+		.start(v-if="startTime", :class="{'has-ampm': startTime.ampm}")
+			.time {{ startTime.time }}
+			.ampm(v-if="startTime.ampm") {{ startTime.ampm }}
+		.duration {{ durationPretty }}
+	.info
+		.title
+			| {{ getLocalizedString(session.title) }}
+		.speakers(v-if="session.speakers") {{ session.speakers.map(s => s.name).join(', ') }}
+		.pending-line(v-if="session.state && session.state !== 'confirmed' && session.state !== 'accepted'")
+			i.fa.fa-exclamation-circle
+			span {{ $t('Pending proposal state') }}
+		.bottom-info(v-if="!isBreak && !isBlocker")
+			.track(v-if="session.track") {{ getLocalizedString(session.track.name) }}
+			i.fa.fa-user-plus.signup-icon(v-if="session.signup_status === 'open'", :title="$t('Requires attendee signup')")
+			i.fa.fa-user-times.signup-icon.full(v-if="session.signup_status === 'full'", :title="$t('This session is full')")
+			.warning.d-print-none(v-if="warnings?.length")
+				.warning-icon.text-danger
+					span(v-if="warnings.length > 1") {{ warnings.length }}
+					i.fa.fa-exclamation-triangle
+	.warning.d-print-none.warning-floating(v-if="warnings?.length && (isBreak || isBlocker)")
+		.warning-icon.text-danger
+			span(v-if="warnings.length > 1") {{ warnings.length }}
+			i.fa.fa-exclamation-triangle
+</template>
+<script>
+import moment from 'moment-timezone'
+import { getLocale, getLocalizedString } from '~/utils'
+import { getHasAmPm, timeWithoutAmPm, timeAmPm } from '../../../schedule/src/time.js'
+
+export default {
+	inject: {
+		eventUrl: { default: null },
+		generateSessionLinkUrl: {
+			default () {
+				return ({eventUrl, session}) => `${eventUrl}talk/${session.id}/`
+			}
+		}
+	},
+	props: {
+		session: Object,
+		warnings: Array,
+		isDragged: Boolean,
+		isDragClone: {
+			type: Boolean,
+			default: false
+		},
+		overrideStart: {
+			type: Object,
+			default: null
+		},
+		displayMode: {
+			type: String,
+			default: 'expanded'
+		}
+	},
+	emits: ['startDragging'],
+	data () {
+		return {
+			getLocalizedString
+		}
+	},
+	computed: {
+		link () {
+			return this.generateSessionLinkUrl({eventUrl: this.eventUrl, session: this.session})
+		},
+		isBreak () {
+			return this.session.slot_type === 'break'
+		},
+		isBlocker () {
+			return this.session.slot_type === 'blocker'
+		},
+		classes () {
+			let classes = []
+			if (this.isBlocker) classes.push('isblocker')
+			else if (this.isBreak) classes.push('isbreak')
+			else {
+				classes.push('istalk')
+				if (this.session.state !== "confirmed" && this.session.state !== "accepted") classes.push('pending')
+				else if (this.session.state !== "confirmed") classes.push('unconfirmed')
+			}
+			if (this.isDragged) classes.push('dragging')
+			if (this.isDragClone) classes.push('clone')
+			if (this.displayMode === 'condensed') classes.push('condensed')
+			return classes
+		},
+		style () {
+			return {
+				'--track-color': this.session.track?.color || 'var(--pretalx-clr-primary)'
+			}
+		},
+		startTime () {
+			// Derive 12h/24h from the UI locale, matching the public schedule
+			const time = this.overrideStart  || this.session.start
+			if (!time) return
+			const locale = getLocale()
+			const timeZone = time.tz()
+			if (getHasAmPm(locale)) {
+				return {
+					time: timeWithoutAmPm(time, locale, timeZone),
+					ampm: timeAmPm(time, locale, timeZone)
+				}
+			}
+			return {
+				time: timeWithoutAmPm(time, locale, timeZone)
+			}
+		},
+		durationMinutes () {
+			if (!this.session.start) return this.session.duration
+			return moment(this.session.end).diff(this.session.start, 'minutes')
+		},
+		durationPretty () {
+			if (!this.durationMinutes) return
+			let minutes = this.durationMinutes
+			const hours = Math.floor(minutes / 60)
+			if (minutes <= 60) {
+				return `${minutes}min`
+			}
+			minutes = minutes % 60
+			if (minutes) {
+				return `${hours}h${minutes}min`
+			}
+			return `${hours}h`
+		}
+	}
+}
+</script>
+<style lang="stylus">
+@import 'session'
+.c-linear-schedule-session
+	session-layout()
+	color: $clr-primary-text-light
+	cursor: pointer
+	user-select: none
+	-webkit-user-select: none
+	-webkit-user-drag: element
+	touch-action: none
+	&.clone
+		z-index: 200
+	&.dragging
+		filter: opacity(0.3)
+		cursor: inherit
+	&.isbreak
+		background-color: $clr-grey-200
+		border-radius: 6px
+		.time-box
+			background-color: $clr-grey-500
+			.start
+				color: $clr-primary-text-dark
+			.duration
+				color: $clr-secondary-text-dark
+		.info
+			justify-content: center
+			align-items: center
+			.title
+				font-size: 20px
+				color: $clr-secondary-text-light
+				text-align: center
+				session-text-clamp(3)
+				session-text-expand()
+	&.isblocker
+		background-color: $clr-red-50
+		border-radius: 6px
+		.time-box
+			background-color: $clr-red-200
+			.start
+				color: $clr-primary-text-dark
+			.duration
+				color: $clr-secondary-text-dark
+		.info
+			justify-content: center
+			align-items: center
+			.title
+				font-size: 20px
+				color: $clr-red-300
+				text-align: center
+				session-text-clamp(3)
+				session-text-expand()
+	&.istalk
+		.time-box
+			background-color: var(--track-color)
+			.start
+				color: $clr-primary-text-dark
+			.duration
+				color: $clr-secondary-text-dark
+		.info
+			border: border-separator()
+			border-left: none
+			border-radius: 0 6px 6px 0
+			background-color: $clr-white
+			.title
+				font-size: 16px
+				margin-bottom: 4px
+				session-text-clamp(3)
+				session-text-expand()
+		&:hover
+			.info
+				border: 1px solid var(--track-color)
+				border-left: none
+				.title
+					color: var(--pretalx-clr-primary-text)
+	&.pending, &.unconfirmed
+		.time-box
+			opacity: 0.5
+		.info
+			background-image: repeating-linear-gradient(-38deg, $clr-grey-100, $clr-grey-100 10px, $clr-white 10px, $clr-white 20px)
+		&:hover
+			.info
+				border: 1px solid var(--track-color)
+				border-left: none
+				.title
+					color: var(--pretalx-clr-primary-text)
+	&.pending
+		.info
+			border-style: dashed dashed dashed none
+	.info
+		.bottom-info .signup-icon
+			flex: none
+			font-size: 18px
+			line-height: 20px
+			color: var(--pretalx-clr-primary)
+			margin-left: 6px
+		.bottom-info .signup-icon.full
+			color: $clr-danger
+		.bottom-info .track
+			margin-right: 0
+		.speakers
+			color: $clr-secondary-text-light
+			session-text-clamp(2)
+			session-text-expand(6)
+	.pending-line
+		color: $clr-warning
+		.fa
+			margin-right: 4px
+	.warning
+		color: #b23e65
+		font-size: 16px
+		flex: none
+		margin-left: auto
+		padding-left: 4px
+		.warning-icon span
+			padding-right: 4px
+	.warning-floating
+		position: absolute
+		top: 0
+		right: 0
+		padding: 4px 4px
+		margin: 4px
+	// Condensed mode styles
+	&.condensed
+		min-width: 0
+		min-height: 60px
+		margin: 4px
+		&.istalk
+			flex-direction: column
+			.time-box
+				display: none
+			.info
+				border-radius: 6px
+				border-left: 4px solid var(--track-color)
+				padding: 4px 6px
+				.title
+					font-size: 13px
+					margin-bottom: 2px
+					line-height: 1.3
+					session-text-clamp(2)
+					session-text-expand(6)
+				.speakers
+					font-size: 11px
+					line-height: 1.2
+					session-text-clamp(1)
+					session-text-expand(4)
+				.bottom-info
+					display: none
+				.pending-line
+					font-size: 11px
+		&.isbreak
+			min-height: 40px
+			margin: 4px
+			.time-box
+				display: none
+			.info
+				padding: 4px 8px
+				.title
+					font-size: 14px
+		&.isblocker
+			min-height: 40px
+			margin: 4px
+			.time-box
+				display: none
+			.info
+				padding: 4px 8px
+				.title
+					font-size: 14px
+@media print
+	.c-linear-schedule-session.isbreak
+		border: 2px solid $clr-grey-300 !important
+	.c-linear-schedule-session.isblocker
+		border: 2px solid $clr-red-200 !important
+	.c-linear-schedule-session.istalk .time-box
+		border: 2px solid var(--track-color) !important
+	.c-linear-schedule-session.istalk .info
+		border-right: 2px solid var(--track-color) !important
+		border-top: 2px solid var(--track-color) !important
+		border-bottom: 2px solid var(--track-color) !important
+</style>

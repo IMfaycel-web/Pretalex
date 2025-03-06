@@ -1,0 +1,477 @@
+/*
+ * SPDX-FileCopyrightText: 2017-present Tobias Kunze
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+.form-group:has(.i18n-form-group) .optional {
+  display: none;
+}
+
+.i18n-form-group {
+  input[lang]:not([type="checkbox"]):not([type="radio"]),
+  textarea[lang],
+  .mail-preview[lang] {
+    background-repeat: no-repeat;
+    background-position: 10px center;
+    padding-left: 34px;
+  }
+
+  textarea[lang],
+  .mail-preview[lang] {
+    background-position: 10px 12px;
+  }
+
+  &.i18n-form-single-language {
+    input[lang]:not([type="checkbox"]):not([type="radio"]),
+    textarea[lang],
+    .mail-preview[lang],
+    input[lang] + label {
+      background: none !important;
+      padding: 0.375rem 0.75rem;
+    }
+  }
+}
+.i18n-form-group input[lang]:not([type="checkbox"]):not([type="radio"]),
+.i18n-form-group textarea {
+  border-top-width: 0;
+  border-radius: 0;
+
+  &:first-child {
+    border-top-width: 1px;
+    border-top-left-radius: var(--size-border-radius);
+    border-top-right-radius: var(--size-border-radius);
+  }
+  &:last-child {
+    border-bottom-right-radius: var(--size-border-radius);
+    border-bottom-left-radius: var(--size-border-radius);
+  }
+}
+.i18n-form-single-language input[lang],
+.i18n-form-single-language textarea[lang],
+.i18n-form-single-language input[lang] + label {
+  background: var(--color-bg) !important;
+  padding: 0.375rem 0.75rem;
+  &::placeholder {
+    opacity: 0;
+  }
+}
+div[lang="af"],
+input[lang="af"],
+textarea[lang="af"] {
+  background-image: url("/static/vendored/flags/za.png");
+}
+div[lang="ar"],
+input[lang="ar"],
+textarea[lang="ar"] {
+  background-image: url("/static/vendored/flags/arab-league.png");
+}
+div[lang="ar-dz"],
+input[lang="ar-dz"],
+textarea[lang="ar-dz"] {
+  background-image: url("/static/vendored/flags/dz.png");
+}
+div[lang="az"],
+input[lang="az"],
+textarea[lang="az"] {
+  background-image: url("/static/vendored/flags/az.png");
+}
+div[lang="be"],
+input[lang="be"],
+textarea[lang="be"] {
+  background-image: url("/static/vendored/flags/by.png");
+}
+div[lang="bg"],
+input[lang="bg"],
+textarea[lang="bg"] {
+  background-image: url("/static/vendored/flags/bg.png");
+}
+div[lang="bn"],
+input[lang="bn"],
+textarea[lang="bn"] {
+  background-image: url("/static/vendored/flags/bd.png");
+}
+div[lang="bs"],
+input[lang="bs"],
+textarea[lang="bs"] {
+  background-image: url("/static/vendored/flags/ba.png");
+}
+div[lang="cs"],
+input[lang="cs"],
+textarea[lang="cs"] {
+  background-image: url("/static/vendored/flags/cz.png");
+}
+div[lang="da"],
+input[lang="da"],
+textarea[lang="da"] {
+  background-image: url("/static/vendored/flags/dk.png");
+}
+div[lang="de"],
+input[lang="de"],
+textarea[lang="de"] {
+  background-image: url("/static/vendored/flags/de.png");
+}
+div[lang="de-formal"],
+input[lang="de-formal"],
+textarea[lang="de-formal"] {
+  background-image: url("/static/vendored/flags/de.png");
+}
+div[lang="el"],
+input[lang="el"],
+textarea[lang="el"] {
+  background-image: url("/static/vendored/flags/gr.png");
+}
+div[lang="en"],
+input[lang="en"],
+textarea[lang="en"] {
+  background-image: url("/static/vendored/flags/gb.png");
+}
+div[lang="en-au"],
+input[lang="en-au"],
+textarea[lang="en-au"] {
+  background-image: url("/static/vendored/flags/au.png");
+}
+div[lang="en-gb"],
+input[lang="en-gb"],
+textarea[lang="en-gb"] {
+  background-image: url("/static/vendored/flags/gb.png");
+}
+div[lang="es"],
+input[lang="es"],
+textarea[lang="es"] {
+  background-image: url("/static/vendored/flags/es.png");
+}
+div[lang="es-ar"],
+input[lang="es-ar"],
+textarea[lang="es-ar"] {
+  background-image: url("/static/vendored/flags/ar.png");
+}
+div[lang="es-co"],
+input[lang="es-co"],
+textarea[lang="es-co"] {
+  background-image: url("/static/vendored/flags/co.png");
+}
+div[lang="es-mx"],
+input[lang="es-mx"],
+textarea[lang="es-mx"] {
+  background-image: url("/static/vendored/flags/mx.png");
+}
+div[lang="es-ni"],
+input[lang="es-ni"],
+textarea[lang="es-ni"] {
+  background-image: url("/static/vendored/flags/ni.png");
+}
+div[lang="es-ve"],
+input[lang="es-ve"],
+textarea[lang="es-ve"] {
+  background-image: url("/static/vendored/flags/ve.png");
+}
+div[lang="et"],
+input[lang="et"],
+textarea[lang="et"] {
+  background-image: url("/static/vendored/flags/ee.png");
+}
+div[lang="fa"],
+input[lang="fa"],
+textarea[lang="fa"] {
+  background-image: url("/static/vendored/flags/ir.png");
+}
+div[lang="fi"],
+input[lang="fi"],
+textarea[lang="fi"] {
+  background-image: url("/static/vendored/flags/fi.png");
+}
+div[lang="fr"],
+input[lang="fr"],
+textarea[lang="fr"] {
+  background-image: url("/static/vendored/flags/fr.png");
+}
+div[lang="ga"],
+input[lang="ga"],
+textarea[lang="ga"] {
+  background-image: url("/static/vendored/flags/ie.png");
+}
+div[lang="he"],
+input[lang="he"],
+textarea[lang="he"] {
+  background-image: url("/static/vendored/flags/il.png");
+}
+div[lang="hi"],
+input[lang="hi"],
+textarea[lang="hi"] {
+  background-image: url("/static/vendored/flags/in.png");
+}
+div[lang="hr"],
+input[lang="hr"],
+textarea[lang="hr"] {
+  background-image: url("/static/vendored/flags/hr.png");
+}
+div[lang="ht"],
+input[lang="ht"],
+textarea[lang="ht"] {
+  background-image: url("/static/vendored/flags/ht.png");
+}
+div[lang="hu"],
+input[lang="hu"],
+textarea[lang="hu"] {
+  background-image: url("/static/vendored/flags/hu.png");
+}
+div[lang="hy"],
+input[lang="hy"],
+textarea[lang="hy"] {
+  background-image: url("/static/vendored/flags/am.png");
+}
+div[lang="id"],
+input[lang="id"],
+textarea[lang="id"] {
+  background-image: url("/static/vendored/flags/id.png");
+}
+div[lang="ig"],
+input[lang="ig"],
+textarea[lang="ig"] {
+  background-image: url("/static/vendored/flags/ng.png");
+}
+div[lang="is"],
+input[lang="is"],
+textarea[lang="is"] {
+  background-image: url("/static/vendored/flags/is.png");
+}
+div[lang="it"],
+input[lang="it"],
+textarea[lang="it"] {
+  background-image: url("/static/vendored/flags/it.png");
+}
+div[lang="ja"],
+input[lang="ja"],
+textarea[lang="ja"] {
+  background-image: url("/static/vendored/flags/jp.png");
+}
+div[lang="ja-jp"],
+input[lang="ja-jp"],
+textarea[lang="ja-jp"] {
+  background-image: url("/static/vendored/flags/jp.png");
+}
+div[lang="ka"],
+input[lang="ka"],
+textarea[lang="ka"] {
+  background-image: url("/static/vendored/flags/ge.png");
+}
+div[lang="kk"],
+input[lang="kk"],
+textarea[lang="kk"] {
+  background-image: url("/static/vendored/flags/kz.png");
+}
+div[lang="km"],
+input[lang="km"],
+textarea[lang="km"] {
+  background-image: url("/static/vendored/flags/kh.png");
+}
+div[lang="kn"],
+input[lang="kn"],
+textarea[lang="kn"] {
+  background-image: url("/static/vendored/flags/in.png");
+}
+div[lang="ko"],
+input[lang="ko"],
+textarea[lang="ko"] {
+  background-image: url("/static/vendored/flags/kr.png");
+}
+div[lang="ky"],
+input[lang="ky"],
+textarea[lang="ky"] {
+  background-image: url("/static/vendored/flags/kg.png");
+}
+div[lang="lb"],
+input[lang="lb"],
+textarea[lang="lb"] {
+  background-image: url("/static/vendored/flags/lu.png");
+}
+div[lang="lt"],
+input[lang="lt"],
+textarea[lang="lt"] {
+  background-image: url("/static/vendored/flags/lt.png");
+}
+div[lang="lv"],
+input[lang="lv"],
+textarea[lang="lv"] {
+  background-image: url("/static/vendored/flags/lv.png");
+}
+div[lang="mk"],
+input[lang="mk"],
+textarea[lang="mk"] {
+  background-image: url("/static/vendored/flags/mk.png");
+}
+div[lang="ml"],
+input[lang="ml"],
+textarea[lang="ml"] {
+  background-image: url("/static/vendored/flags/in.png");
+}
+div[lang="mn"],
+input[lang="mn"],
+textarea[lang="mn"] {
+  background-image: url("/static/vendored/flags/mn.png");
+}
+div[lang="mr"],
+input[lang="mr"],
+textarea[lang="mr"] {
+  background-image: url("/static/vendored/flags/in.png");
+}
+div[lang="ms"],
+input[lang="ms"],
+textarea[lang="ms"] {
+  background-image: url("/static/vendored/flags/my.png");
+}
+div[lang="my"],
+input[lang="my"],
+textarea[lang="my"] {
+  background-image: url("/static/vendored/flags/mm.png");
+}
+div[lang="nb"],
+input[lang="nb"],
+textarea[lang="nb"] {
+  background-image: url("/static/vendored/flags/no.png");
+}
+div[lang="ne"],
+input[lang="ne"],
+textarea[lang="ne"] {
+  background-image: url("/static/vendored/flags/np.png");
+}
+div[lang="nl"],
+input[lang="nl"],
+textarea[lang="nl"] {
+  background-image: url("/static/vendored/flags/nl.png");
+}
+div[lang="nn"],
+input[lang="nn"],
+textarea[lang="nn"] {
+  background-image: url("/static/vendored/flags/no.png");
+}
+div[lang="pa"],
+input[lang="pa"],
+textarea[lang="pa"] {
+  background-image: url("/static/vendored/flags/in.png");
+}
+div[lang="pl"],
+input[lang="pl"],
+textarea[lang="pl"] {
+  background-image: url("/static/vendored/flags/pl.png");
+}
+div[lang="pt"],
+input[lang="pt"],
+textarea[lang="pt"] {
+  background-image: url("/static/vendored/flags/pt.png");
+}
+div[lang="pt-br"],
+input[lang="pt-br"],
+textarea[lang="pt-br"] {
+  background-image: url("/static/vendored/flags/br.png");
+}
+div[lang="pt-pt"],
+input[lang="pt-pt"],
+textarea[lang="pt-pt"] {
+  background-image: url("/static/vendored/flags/pt.png");
+}
+div[lang="ro"],
+input[lang="ro"],
+textarea[lang="ro"] {
+  background-image: url("/static/vendored/flags/ro.png");
+}
+div[lang="ru"],
+input[lang="ru"],
+textarea[lang="ru"] {
+  background-image: url("/static/vendored/flags/ru.png");
+}
+div[lang="sk"],
+input[lang="sk"],
+textarea[lang="sk"] {
+  background-image: url("/static/vendored/flags/sk.png");
+}
+div[lang="sl"],
+input[lang="sl"],
+textarea[lang="sl"] {
+  background-image: url("/static/vendored/flags/si.png");
+}
+div[lang="sq"],
+input[lang="sq"],
+textarea[lang="sq"] {
+  background-image: url("/static/vendored/flags/al.png");
+}
+div[lang="sr"],
+input[lang="sr"],
+textarea[lang="sr"] {
+  background-image: url("/static/vendored/flags/rs.png");
+}
+div[lang="sr-latn"],
+input[lang="sr-latn"],
+textarea[lang="sr-latn"] {
+  background-image: url("/static/vendored/flags/rs.png");
+}
+div[lang="sv"],
+input[lang="sv"],
+textarea[lang="sv"] {
+  background-image: url("/static/vendored/flags/se.png");
+}
+div[lang="sw"],
+input[lang="sw"],
+textarea[lang="sw"] {
+  background-image: url("/static/vendored/flags/tz.png");
+}
+div[lang="ta"],
+input[lang="ta"],
+textarea[lang="ta"] {
+  background-image: url("/static/vendored/flags/in.png");
+}
+div[lang="te"],
+input[lang="te"],
+textarea[lang="te"] {
+  background-image: url("/static/vendored/flags/in.png");
+}
+div[lang="tg"],
+input[lang="tg"],
+textarea[lang="tg"] {
+  background-image: url("/static/vendored/flags/tj.png");
+}
+div[lang="th"],
+input[lang="th"],
+textarea[lang="th"] {
+  background-image: url("/static/vendored/flags/th.png");
+}
+div[lang="tk"],
+input[lang="tk"],
+textarea[lang="tk"] {
+  background-image: url("/static/vendored/flags/tm.png");
+}
+div[lang="tr"],
+input[lang="tr"],
+textarea[lang="tr"] {
+  background-image: url("/static/vendored/flags/tr.png");
+}
+div[lang="uk"],
+input[lang="uk"],
+textarea[lang="uk"] {
+  background-image: url("/static/vendored/flags/ua.png");
+}
+div[lang="ur"],
+input[lang="ur"],
+textarea[lang="ur"] {
+  background-image: url("/static/vendored/flags/pk.png");
+}
+div[lang="uz"],
+input[lang="uz"],
+textarea[lang="uz"] {
+  background-image: url("/static/vendored/flags/uz.png");
+}
+div[lang="vi"],
+input[lang="vi"],
+textarea[lang="vi"] {
+  background-image: url("/static/vendored/flags/vn.png");
+}
+div[lang="zh-hans"],
+input[lang="zh-hans"],
+textarea[lang="zh-hans"] {
+  background-image: url("/static/vendored/flags/cn.png");
+}
+div[lang="zh-hant"],
+input[lang="zh-hant"],
+textarea[lang="zh-hant"] {
+  background-image: url("/static/vendored/flags/tw.png");
+}

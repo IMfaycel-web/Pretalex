@@ -1,0 +1,226 @@
+# SPDX-FileCopyrightText: 2017-present Tobias Kunze
+# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-Pretalx-AGPL-3.0-Terms
+
+import uuid
+
+from django.conf import settings
+from django.db import models
+from django.utils.functional import cached_property
+from django.utils.translation import gettext_lazy as _
+
+from pretalx.agenda.rules import can_view_schedule, is_speaker_viewable
+from pretalx.common.models.fields import MarkdownField
+from pretalx.common.models.mixins import GenerateCode, PretalxModel
+from pretalx.common.models.settings import GlobalSettings
+from pretalx.common.text.phrases import phrases
+from pretalx.common.urls import EventUrls
+from pretalx.orga.rules import can_view_speaker_names
+from pretalx.person.enums import SpeakerProfileOrigin
+from pretalx.person.models.picture import ProfilePictureMixin
+from pretalx.person.rules import (
+    can_mark_speakers_arrived,
+    is_administrator,
+    is_deletable_speaker_profile,
+    is_reviewer,
+)
+from pretalx.schedule.models import Availability
+from pretalx.submission.rules import orga_can_change_submissions
+
+
+class SpeakerProfile(ProfilePictureMixin, GenerateCode, PretalxModel):
+    """A speaker in a specific event.
+
+    If a speaker has no user, it is "managed". If a speaker has a
+    user, empty fields fall back on the corresponding user fields.
+    """
+
+    code_scope = ("event",)
+
+    user = models.ForeignKey(
+        to="person.User",
+        related_name="profiles",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+    )
+    event = models.ForeignKey(
+        to="event.Event", related_name="+", on_delete=models.CASCADE
+    )
+    name = models.CharField(
+        max_length=120, null=True, blank=True, verbose_name=_("Name")
+    )
+    code = models.CharField(max_length=16)
+    email = models.EmailField(null=True, blank=True, verbose_name=_("Contact email"))
+    locale = models.CharField(
+        max_length=32,
+        null=True,
+        blank=True,
+        choices=settings.LANGUAGES,
+        verbose_name=_("Preferred language"),
+    )
+    invitation_token = models.CharField(
+        max_length=64, null=True, blank=True, unique=True
+    )
+    invitation_sent = models.DateTimeField(null=True, blank=True)
+    origin = models.CharField(
+        max_length=8,
+        choices=SpeakerProfileOrigin.choices,
+        default=SpeakerProfileOrigin.CFP,
+    )
+    guid = models.CharField(max_length=36, editable=False)
+    biography = MarkdownField(verbose_name=_("Biography"), null=True, blank=True)
+    has_arrived = models.BooleanField(
+        default=False, verbose_name=_("The speaker has arrived")
+    )
+    internal_notes = models.TextField(
+        null=True,
+        blank=True,
+        verbose_name=phrases.base.internal_notes,
+        help_text=phrases.base.internal_notes_help,
+    )
+    profile_picture = models.ForeignKey(
+        "person.ProfilePicture",
+        verbose_name=_("Profile picture"),
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="speakers",
+    )
+
+    log_prefix = "pretalx.user.profile"
+
+    class Meta:
+        unique_together = (("event", "code"), ("event", "user"))
+        # These permissions largely apply to event-scoped user actions
+        rules_permissions = {
+            "list": can_view_schedule | (is_reviewer & can_view_speaker_names),
+            "reviewer_list": is_reviewer & can_view_speaker_names,
+            "orga_list": orga_can_change_submissions
+            | (is_reviewer & can_view_speaker_names),
+            "view": is_speaker_viewable
+            | orga_can_change_submissions
+            | (is_reviewer & can_view_speaker_names),
+            "orga_view": orga_can_change_submissions
+            | (is_reviewer & can_view_speaker_names),
+            "create": is_administrator,
+            "update": orga_can_change_submissions,
+            "mark_arrived": orga_can_change_submissions & can_mark_speakers_arrived,
+            "delete": (is_administrator | orga_can_change_submissions)
+            & is_deletable_speaker_profile,
+        }
+
+    class urls(EventUrls):
+        public = "{self.event.urls.base}speaker/{self.code}/"
+        social_image = "{public}og-image"
+        talks_ical = "{public}talks.ics"
+        invitation = "{self.event.urls.base}invite/speaker/{self.invitation_token}/"
+
+    class orga_urls(EventUrls):
+        base = "{self.event.orga_urls.speakers}{self.code}/"
+        password_reset = "{base}reset"  # noqa: S105  -- URL pattern, not a password
+        toggle_arrived = "{base}toggle-arrived"
+        invite = "{base}invite"
+        retract_invitation = "{base}invite/retract"
+        delete = "{base}delete"
+        send_mail = "{self.event.orga_urls.compose_mails_sessions}?speakers={self.code}"
+
+    def __str__(self):
+        """Help when debugging."""
+        return (
+            f"SpeakerProfile(event={self.event.slug}, user={self.get_display_name()})"
+        )
+
+    def get_display_name(self, allow_empty=False):
+        name = self.name or (self.user.name if self.user else None)
+        if name or allow_empty:
+            return name or ""
+        return str(_("Unnamed speaker"))
+
+    def assign_code(self, length=None):
+        super().assign_code(length=length)
+        self.guid = self.compute_guid()
+
+    def save(self, *args, **kwargs):
+        if not self.guid:
+            new_fields = {"guid"}
+            if not self.user_id and not self.code:
+                new_fields.add(self.code_property)
+            else:
+                self.guid = self.compute_guid()
+            if update_fields := kwargs.get("update_fields"):
+                kwargs["update_fields"] = new_fields.union(update_fields)
+        return super().save(*args, **kwargs)
+
+    def compute_guid(self) -> str | None:
+        prefix = None
+        code = None
+        if self.user_id:
+            prefix = "user"
+            code = self.user.code
+        if not code:
+            prefix = "speaker"
+            code = self.code
+        if not code:
+            # code is always set except for unsaved objects
+            return None
+        return str(
+            uuid.uuid5(GlobalSettings().get_instance_identifier(), f"{prefix}:{code}")
+        )
+
+    @property
+    def is_managed(self) -> bool:
+        return self.user_id is None
+
+    @property
+    def has_pending_invitation(self) -> bool:
+        return self.is_managed and bool(self.invitation_token)
+
+    @property
+    def effective_email(self) -> str | None:
+        return self.email or (self.user.email if self.user_id else None)
+
+    @property
+    def effective_locale(self) -> str:
+        locale = self.locale or (self.user.locale if self.user_id else None)
+        if locale and locale in self.event.locales:
+            return locale
+        return self.event.locale
+
+    @cached_property
+    def talks(self):
+        """A queryset of.
+
+        :class:`~pretalx.submission.models.submission.Submission` objects.
+
+        Contains all visible talks by this user on this event.
+        """
+        return self.event.talks.filter(speakers=self)
+
+    @cached_property
+    def current_talk_slots(self):
+        from pretalx.person.domain.queries.profile import (  # noqa: PLC0415 -- thin method
+            visible_talk_slots,
+        )
+
+        return visible_talk_slots(self)
+
+    def get_instance_data(self):
+        data = {}
+        if not self._state.adding:
+            data = {
+                "name": self.name or (self.user.name if self.user else None),
+                "email": self.email,
+                "user_email": self.user.email if self.user else None,
+                "profile_picture": (
+                    self.profile_picture.avatar.name
+                    if self.profile_picture_id and self.profile_picture.avatar
+                    else None
+                ),
+            }
+        result = super().get_instance_data() | data
+        result.pop("invitation_token", None)
+        return result
+
+    @cached_property
+    def full_availability(self):
+        return Availability.union(self.availabilities.all())

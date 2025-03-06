@@ -1,0 +1,53 @@
+{% comment %}
+SPDX-FileCopyrightText: 2026-present Tobias Kunze
+SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-Pretalx-AGPL-3.0-Terms
+{% endcomment %}
+
+{% load i18n %}
+{% load rules %}
+
+{% spaceless %}
+    <span class="speaker-name">
+        {% if speaker.is_managed %}
+            <span
+                class="avatar-wrap"
+                data-dialog-target="#speaker-state-{{ speaker.code }}{% if dialog_suffix %}-{{ dialog_suffix }}{% endif %}"
+                data-toggle="dialog"
+                title="{% translate 'No account' %}"
+                aria-label="{% translate 'No account' %}"
+            >
+                {% include "orga/includes/user_avatar.html" with user=speaker placeholder=True lightbox=False %}
+                <span class="status-dot"></span>
+            </span>
+        {% elif not no_avatar %}
+            {% if not request.event or request.event.cfp.request_avatar %}
+                {% include "orga/includes/user_avatar.html" with user=speaker placeholder=True %}
+            {% endif %}
+        {% endif %}
+        {% if link_url %}
+            <a href="{{ link_url }}">{% include "orga/includes/user_name.html" with user=speaker no_avatar=True %}</a>
+        {% else %}
+            {% include "orga/includes/user_name.html" with user=speaker no_avatar=True %}
+        {% endif %}
+        {% if speaker.is_managed %}
+            {% if not speaker.effective_email %}
+                <i
+                    class="fa fa-bell-slash-o text-danger"
+                    title="{% translate 'This speaker has no contact email address and cannot receive emails.' %}"
+                ></i>
+            {% endif %}
+            <dialog
+                id="speaker-state-{{ speaker.code }}{% if dialog_suffix %}-{{ dialog_suffix }}{% endif %}"
+                closedby="any"
+                class="speaker-state-dialog"
+            >
+                <div class="modal-card-content">
+                    <button type="button" class="dialog-close close-dialog" aria-label="{% translate 'Close' %}">
+                        <i class="fa fa-times"></i>
+                    </button>
+                    {% include "orga/includes/speaker_state_info.html" %}
+                </div>
+            </dialog>
+        {% endif %}
+    </span>
+{% endspaceless %}
